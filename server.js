@@ -10,6 +10,21 @@ app.use(express.static('public'));
 const players = {};
 let currentMap = 'Arena';
 
+const SPAWNS = {
+    'Arena': [
+        {x: 40, z: 0}, {x: -40, z: 0}, {x: 0, z: 40}, {x: 0, z: -40}
+    ],
+    'CloseQuarters': [
+        {x: 35, z: 35}, {x: -35, z: -35}, {x: 35, z: -35}, {x: -35, z: 35}
+    ],
+    'Towers': [
+        {x: 0, z: -40}, // Tower 1
+        {x: 0, z: 40},  // Tower 2
+        {x: 20, z: 0},
+        {x: -20, z: 0}
+    ]
+};
+
 // Game Loop State
 let gameState = 'PLAYING'; // 'PLAYING' | 'VOTING'
 let timeLeft = 240; // 4 minutes
@@ -119,13 +134,15 @@ io.on('connection', (socket) => {
           players[socket.id].color = data.color;
           
           // Move to a safe spawn immediately to avoid "first spawn bug" at 0,0,0
-          const spawnPoints = [
-              {x: 40, z: 0}, {x: -40, z: 0}, {x: 0, z: 40}, {x: 0, z: -40}
-          ];
+          const spawnPoints = SPAWNS[currentMap] || SPAWNS['Arena'];
           const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+
           players[socket.id].x = spawn.x + (Math.random() - 0.5) * 5;
           players[socket.id].z = spawn.z + (Math.random() - 0.5) * 5;
-          players[socket.id].y = 20; // High drop to prevent spawning inside geometry
+
+          // Custom height for Towers to spawn on platforms if unlucky, but safe y=20 usually works.
+          // However, for Towers, platforms are at y=15. y=20 is safe.
+          players[socket.id].y = 20;
 
           // Emit initial position to the player so they don't start at 0,0,0
           socket.emit('initPosition', { 
@@ -264,6 +281,24 @@ io.on('connection', (socket) => {
           io.emit('chatMessage', { id: 'SYSTEM', name: 'SYSTEM', message: 'Weapon selection enabled (/select mode)' });
           return;
       }
+
+      if (message === '/suicide') {
+          if (players[socket.id] && players[socket.id].health > 0) {
+              players[socket.id].health = 0;
+              io.emit('healthUpdate', { id: socket.id, health: 0 });
+              io.to(socket.id).emit('playerDied');
+              io.emit('playerKilled', socket.id);
+
+              const name = players[socket.id].name;
+              io.emit('killMessage', {
+                  killerId: socket.id,
+                  victimId: socket.id,
+                  killerName: name,
+                  victimName: name
+              });
+          }
+          return;
+      }
       
       const name = (players[socket.id]) ? players[socket.id].name : "Unknown";
       
@@ -279,24 +314,12 @@ io.on('connection', (socket) => {
       if (players[socket.id]) {
           players[socket.id].health = 100;
           
-          // Safe spawn points for Arena 2.0 (Corners and safe spots)
-          // Center is blocked (0,0)
-          // Pillars at +/- 20
-          
-          const spawnPoints = [
-              {x: 40, z: 0},
-              {x: -40, z: 0},
-              {x: 0, z: 40},
-              {x: 0, z: -40},
-              {x: 35, z: 35}, // Corner
-              {x: -35, z: -35}
-          ];
-          
+          const spawnPoints = SPAWNS[currentMap] || SPAWNS['Arena'];
           const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
           
           players[socket.id].x = spawn.x + (Math.random() - 0.5) * 5;
-          players[socket.id].y = 20; // High drop to prevent spawning inside geometry
           players[socket.id].z = spawn.z + (Math.random() - 0.5) * 5;
+          players[socket.id].y = 25; // Higher drop to be safe
           
           io.emit('playerRespawned', players[socket.id]);
       }

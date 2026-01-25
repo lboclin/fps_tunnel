@@ -89,7 +89,7 @@ const WEAPONS = {
         ammo: 35,
         fireRate: 66,
         auto: true,
-        speed: 0.70,
+        speed: 1.0,
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
@@ -284,11 +284,14 @@ function createDetailedWeapon(type) {
         const handle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.15), matWood);
         const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.08, 0.3), matShiny);
         blade.position.z = -0.22;
+        // Rotate for slash ready position
+        blade.rotation.x = Math.PI / 4;
         
         group.add(handle);
         group.add(blade);
         group.scale.set(1.5, 1.5, 1.5);
-        group.position.set(0.3, -0.25, -0.4);
+        group.position.set(0.4, -0.3, -0.4);
+        group.rotation.y = -0.5; // Slight angle
     }
     
     // Muzzle Flash
@@ -982,6 +985,7 @@ const matchTimer = document.getElementById('match-timer');
 const votingOverlay = document.getElementById('voting-overlay');
 const voteOptionsDiv = document.getElementById('vote-options');
 const voteStatus = document.getElementById('vote-status');
+let currentVoteOptions = [];
 
 socket.on('matchUpdate', (data) => {
     // Format timer
@@ -999,13 +1003,14 @@ socket.on('matchUpdate', (data) => {
 socket.on('startVoting', (data) => {
     votingOverlay.style.display = 'flex';
     controls.unlock();
-    voteStatus.innerText = "Vote for Next Map";
+    voteStatus.innerText = "Vote for Next Map (Press 6 or 7)";
+    currentVoteOptions = data.options;
 
     voteOptionsDiv.innerHTML = '';
-    data.options.forEach(mapName => {
+    data.options.forEach((mapName, index) => {
         const btn = document.createElement('div');
         btn.className = 'vote-btn';
-        btn.innerText = mapName;
+        btn.innerText = `${mapName} [${index + 6}]`; // Map to 6, 7
         btn.onclick = () => {
              socket.emit('voteMap', mapName);
              voteStatus.innerText = `Voted for ${mapName}`;
@@ -1100,8 +1105,17 @@ function animate() {
     }
 
     // Apply visual recoil
-    weaponGroup.rotation.x = currentRecoilPitch;
-    weaponGroup.position.z = currentRecoilZ;
+    if (currentWeapon === 'knife' && isFiring) {
+        // Slashing animation
+        const t = Date.now() * 0.02;
+        weaponGroup.rotation.x = Math.sin(t) * 0.2;
+        weaponGroup.rotation.y = Math.cos(t) * 0.5;
+        weaponGroup.position.z = Math.sin(t * 2) * 0.2;
+    } else {
+        weaponGroup.rotation.x = currentRecoilPitch;
+        weaponGroup.rotation.y = 0; // Reset yaw
+        weaponGroup.position.z = currentRecoilZ;
+    }
     
     if(isReloading) weaponGroup.rotation.x -= 0.5;
 
