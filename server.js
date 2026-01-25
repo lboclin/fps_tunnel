@@ -1,0 +1,222 @@
+const express = require('express');
+const app = express();
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require("socket.io");
+const io = new Server(server);
+
+app.use(express.static('public'));
+
+const players = {};
+
+io.on('connection', (socket) => {
+  console.log('a user connected: ' + socket.id);
+
+  // Player joined, wait for joinGame to fully initialize properties (name/color)
+  // But we need a basic object for tracking if they disconnect before joining
+  players[socket.id] = {
+      id: socket.id,
+      x: 0, 
+      y: 1,
+      z: 40, // Safe spawn (T Spawn area) instead of 0,0 (Mid Block)
+      rotation: 0,
+      color: 0xffffff, // Default
+      health: 100,
+      kills: 0,
+      name: "Player"
+  };
+
+  // Handle Join Game
+  socket.on('joinGame', (data) => {
+      if (players[socket.id]) {
+          players[socket.id].name = data.name.substring(0, 15); // Server side validation
+          players[socket.id].color = data.color;
+          
+          // Move to a safe spawn immediately to avoid "first spawn bug" at 0,0,0
+          const spawnPoints = [
+              {x: 40, z: 0}, {x: -40, z: 0}, {x: 0, z: 40}, {x: 0, z: -40}
+          ];
+          const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+          players[socket.id].x = spawn.x + (Math.random() - 0.5) * 5;
+          players[socket.id].z = spawn.z + (Math.random() - 0.5) * 5;
+          players[socket.id].y = 20; // High drop to prevent spawning inside geometry
+
+          // Emit initial position to the player so they don't start at 0,0,0
+          socket.emit('initPosition', { 
+              x: players[socket.id].x, 
+              y: players[socket.id].y, 
+              z: players[socket.id].z 
+          });
+
+          // Send current players to the new player
+          socket.emit('currentPlayers', players);
+
+          // Broadcast the new player to everyone else
+          socket.broadcast.emit('newPlayer', players[socket.id]);
+      }
+  });
+
+  // Handle player movement
+  socket.on('playerMovement', (movementData) => {
+    if (players[socket.id]) {
+      players[socket.id].x = movementData.x;
+      players[socket.id].y = movementData.y;
+      players[socket.id].z = movementData.z;
+      players[socket.id].rotation = movementData.rotation;
+      
+      // Emit to other players
+      // socket.broadcast.emit('playerMoved', players[socket.id]);
+      // Optimization: volatile for movement
+      socket.broadcast.volatile.emit('playerMoved', players[socket.id]);
+    }
+  });
+  
+  // Handle shooting (visual only)
+  socket.on('shoot', () => {
+      io.emit('playerShoots', { id: socket.id });
+  });
+
+  // Handle hit
+  socket.on('shootHit', (data) => {
+      // Data: { id, part, weapon }
+      const targetId = data.id;
+      const part = data.part || 'body';
+      const weapon = data.weapon || 'revolver';
+      
+      if (players[targetId] && players[targetId].health > 0) {
+          let damage = 0;
+          
+          // Calculate distance
+          let dist = 100; // default far
+          if (players[socket.id] && players[targetId]) {
+              const dx = players[socket.id].x - players[targetId].x;
+              const dy = players[socket.id].y - players[targetId].y;
+              const dz = players[socket.id].z - players[targetId].z;
+              dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          }
+
+          // Damage Logic
+          if (weapon === 'ak47') {
+              damage = (part === 'head') ? 50 : 30;
+          } else if (weapon === 'smg') {
+              if (part === 'head') {
+                  damage = (dist < 20) ? 35 : 15; // Buff close range headshot
+              } else {
+                  damage = (dist < 20) ? 12 : 8; // Slight body buff close range
+              }
+          } else if (weapon === 'revolver' || weapon === 'pistol') {
+              damage = (part === 'head') ? 100 : 50;
+          } else if (weapon === 'knife') {
+              damage = (part === 'head') ? 100 : 35;
+          } else if (weapon === 'sniper') {
+              damage = 100; // Hit kill anywhere
+          } else if (weapon === 'laser') {
+              damage = 4; // Low damage high fire rate
+          } else {
+              damage = 20; // Fallback
+          }
+          
+          players[targetId].health -= damage;
+          
+          // Confirm hit to shooter
+          io.to(socket.id).emit('registerHit');
+          
+          io.emit('healthUpdate', { id: targetId, health: players[targetId].health });
+          
+          if (players[targetId].health <= 0) {
+              io.to(targetId).emit('playerDied');
+              io.emit('playerKilled', targetId); // Let everyone know to hide mesh
+              
+              // Update kills & Heal for shooter
+              if (players[socket.id]) {
+                  players[socket.id].kills += 1;
+                  // Heal 35 on kill, max 100
+                  players[socket.id].health = Math.min(100, players[socket.id].health + 35);
+                  io.emit('healthUpdate', { id: socket.id, health: players[socket.id].health });
+              }
+
+              // Emit Kill Feed with Names
+              io.emit('killMessage', { 
+                  killerId: socket.id, 
+                  victimId: targetId,
+                  killerName: players[socket.id] ? players[socket.id].name : "Unknown",
+                  victimName: players[targetId] ? players[targetId].name : "Unknown"
+              });
+              
+              // Broadcast new leaderboard
+              io.emit('leaderboardUpdate', Object.values(players).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  kills: p.kills,
+                  isMe: false // client will check
+              })));
+          }
+      }
+  });
+
+  // Handle Chat
+  socket.on('chatMessage', (message) => {
+      // Basic validation
+      if (!message || message.length > 100) return;
+      
+      // Admin/Game Commands
+      if (message === '/random') {
+          io.emit('updateGameRules', { weaponMenuEnabled: false });
+          io.emit('chatMessage', { id: 'SYSTEM', name: 'SYSTEM', message: 'Weapon selection disabled (/random mode)' });
+          return;
+      }
+      if (message === '/select') {
+          io.emit('updateGameRules', { weaponMenuEnabled: true });
+          io.emit('chatMessage', { id: 'SYSTEM', name: 'SYSTEM', message: 'Weapon selection enabled (/select mode)' });
+          return;
+      }
+      
+      const name = (players[socket.id]) ? players[socket.id].name : "Unknown";
+      
+      io.emit('chatMessage', {
+          id: socket.id,
+          name: name,
+          message: message
+      });
+  });
+
+  // Handle respawn
+  socket.on('requestRespawn', () => {
+      if (players[socket.id]) {
+          players[socket.id].health = 100;
+          
+          // Safe spawn points for Arena 2.0 (Corners and safe spots)
+          // Center is blocked (0,0)
+          // Pillars at +/- 20
+          
+          const spawnPoints = [
+              {x: 40, z: 0},
+              {x: -40, z: 0},
+              {x: 0, z: 40},
+              {x: 0, z: -40},
+              {x: 35, z: 35}, // Corner
+              {x: -35, z: -35}
+          ];
+          
+          const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+          
+          players[socket.id].x = spawn.x + (Math.random() - 0.5) * 5;
+          players[socket.id].y = 20; // High drop to prevent spawning inside geometry
+          players[socket.id].z = spawn.z + (Math.random() - 0.5) * 5;
+          
+          io.emit('playerRespawned', players[socket.id]);
+      }
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log('user disconnected: ' + socket.id);
+    delete players[socket.id];
+    io.emit('disconnectPlayer', socket.id);
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
