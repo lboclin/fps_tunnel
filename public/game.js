@@ -52,6 +52,7 @@ let lastShotTime = 0;
 let currentRecoilPitch = 0; // Up/Down rotation (visual)
 let currentRecoilZ = 0; // Kickback position (visual)
 let currentSpreadRecoil = 0.0; // Actual accuracy loss
+let cameraRecoilRecover = 0;
 
 const WEAPONS = {
     'revolver': {
@@ -78,7 +79,7 @@ const WEAPONS = {
         recoilRecover: 0.3, // Slow recovery during fire (allows buildup). Resets instantly after 500ms stop.
         spreadBase: 0.0,   // Base is perfect
         spreadMove: 0.15,
-        recoil: 0.04,     // Accumulates to ~0.2 (20%) after 5 shots
+        recoil: 0.08,     // Accumulates to ~0.2 (20%) after 5 shots
         color: 0x8b4513,
         traceColor: 0xffaa00
     },
@@ -91,7 +92,7 @@ const WEAPONS = {
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
-        spreadMove: 0.05,
+        spreadMove: 0.02,
         recoil: 0.05,     // Accumulates quickly to ~0.3 (30%)
         color: 0x555555,
         traceColor: 0xffaa00
@@ -469,7 +470,7 @@ function createPlayerMesh(color) {
     const matHair = new THREE.MeshStandardMaterial({ color: 0x332211 });
 
     // Materials Array: Right, Left, Top, Bottom, Front, Back
-    const headMats = [matSkin, matSkin, matSkin, matSkin, matFace, matHair];
+    const headMats = [matSkin, matSkin, matSkin, matSkin, matHair, matFace];
     
     const head = new THREE.Mesh(headGeo, headMats);
     head.position.y = 1.65;
@@ -617,7 +618,9 @@ function attemptShoot() {
     // Sniper Scope Animation
     if (currentWeapon === 'sniper' && isScoped) {
         // Kick camera up slightly
-        controls.getObject().rotation.x += 0.02;
+        const kick = 0.02;
+        controls.getObject().rotation.x += kick;
+        cameraRecoilRecover += kick;
     }
 
     socket.emit('shoot');
@@ -977,6 +980,13 @@ function animate() {
     currentRecoilZ = THREE.MathUtils.lerp(currentRecoilZ, 0, delta * 10);
     if(currentSpreadRecoil > 0) currentSpreadRecoil = Math.max(0, currentSpreadRecoil - recover);
     
+    if (cameraRecoilRecover > 0) {
+        const recoverSpeed = 2.0;
+        const recoverAmount = Math.min(cameraRecoilRecover, recoverSpeed * delta);
+        controls.getObject().rotation.x -= recoverAmount;
+        cameraRecoilRecover -= recoverAmount;
+    }
+
     // Apply visual recoil
     weaponGroup.rotation.x = currentRecoilPitch;
     weaponGroup.position.z = currentRecoilZ;
