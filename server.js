@@ -8,6 +8,92 @@ const io = new Server(server);
 app.use(express.static('public'));
 
 const players = {};
+let currentMap = 'Arena';
+
+// Game Loop State
+let gameState = 'PLAYING'; // 'PLAYING' | 'VOTING'
+let timeLeft = 240; // 4 minutes
+let nextMapOptions = [];
+let votes = {}; // socketId -> mapName
+const MAP_NAMES = ['Arena', 'CloseQuarters', 'Towers'];
+
+// Game Loop
+setInterval(() => {
+    if (gameState === 'PLAYING') {
+        timeLeft--;
+        if (timeLeft <= 0) {
+            startVoting();
+        }
+    } else if (gameState === 'VOTING') {
+        timeLeft--;
+        if (timeLeft <= 0) {
+            endVoting();
+        }
+    }
+
+    io.emit('matchUpdate', {
+        gameState: gameState,
+        timeLeft: timeLeft
+    });
+}, 1000);
+
+function startVoting() {
+    gameState = 'VOTING';
+    timeLeft = 15;
+    votes = {};
+
+    // Select 2 random maps excluding current
+    const available = MAP_NAMES.filter(m => m !== currentMap);
+    // Shuffle
+    available.sort(() => Math.random() - 0.5);
+    nextMapOptions = available.slice(0, 2);
+
+    io.emit('startVoting', {
+        options: nextMapOptions
+    });
+}
+
+function endVoting() {
+    // Count votes
+    const counts = {};
+    nextMapOptions.forEach(m => counts[m] = 0);
+    Object.values(votes).forEach(vote => {
+        if (counts[vote] !== undefined) counts[vote]++;
+    });
+
+    // Find winner
+    let winner = nextMapOptions[0];
+    let maxVotes = -1;
+    nextMapOptions.forEach(m => {
+        if (counts[m] > maxVotes) {
+            maxVotes = counts[m];
+            winner = m;
+        }
+    });
+
+    // Change Map
+    currentMap = winner;
+    gameState = 'PLAYING';
+    timeLeft = 240;
+
+    // Reset players (kills, health)
+    Object.values(players).forEach(p => {
+        p.kills = 0;
+        p.health = 100;
+    });
+
+    io.emit('mapChange', {
+        map: currentMap
+    });
+
+    // Send updated leaderboard (cleared)
+    io.emit('leaderboardUpdate', Object.values(players).map(p => ({
+        id: p.id,
+        name: p.name,
+        kills: p.kills,
+        isMe: false
+    })));
+}
 
 io.on('connection', (socket) => {
   console.log('a user connected: ' + socket.id);
@@ -45,7 +131,8 @@ io.on('connection', (socket) => {
           socket.emit('initPosition', { 
               x: players[socket.id].x, 
               y: players[socket.id].y, 
-              z: players[socket.id].z 
+              z: players[socket.id].z,
+              map: currentMap
           });
 
           // Send current players to the new player
@@ -151,6 +238,13 @@ io.on('connection', (socket) => {
                   isMe: false // client will check
               })));
           }
+      }
+  });
+
+  // Handle Vote
+  socket.on('voteMap', (mapName) => {
+      if (gameState === 'VOTING' && nextMapOptions.includes(mapName)) {
+          votes[socket.id] = mapName;
       }
   });
 

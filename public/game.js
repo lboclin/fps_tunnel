@@ -53,6 +53,7 @@ let currentRecoilPitch = 0; // Up/Down rotation (visual)
 let currentRecoilZ = 0; // Kickback position (visual)
 let currentSpreadRecoil = 0.0; // Actual accuracy loss
 let cameraRecoilRecover = 0;
+let currentCameraHeight = 1.6;
 
 const WEAPONS = {
     'revolver': {
@@ -379,7 +380,7 @@ function generateDetailedTexture(color1, color2, scale=1) {
 const wallMat = new THREE.MeshStandardMaterial({ map: generateDetailedTexture('#888888', '#555555', 2), roughness: 0.9 });
 const floorMat = new THREE.MeshStandardMaterial({ map: generateDetailedTexture('#c2b280', '#a09060', 1), roughness: 1.0 });
 
-const walls = [];
+let walls = [];
 
 function createStructure(type, x, y, z, params) {
     if (type === 'box') {
@@ -415,26 +416,76 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
-// Map Layout (Arena 2.0 Remake)
-createStructure('box', 0, 0, -50, {w:100, h:15, d:2}); // N
-createStructure('box', 0, 0, 50, {w:100, h:15, d:2}); // S
-createStructure('box', -50, 0, 0, {w:2, h:15, d:100}); // W
-createStructure('box', 50, 0, 0, {w:2, h:15, d:100}); // E
+const MAPS = {
+    'Arena': [
+        // Map Layout (Arena 2.0 Remake)
+        ['box', 0, 0, -50, {w:100, h:15, d:2}], // N
+        ['box', 0, 0, 50, {w:100, h:15, d:2}], // S
+        ['box', -50, 0, 0, {w:2, h:15, d:100}], // W
+        ['box', 50, 0, 0, {w:2, h:15, d:100}], // E
+        // Central Complex
+        ['pillar', -10, 0, -10, {r:2, h:10}],
+        ['pillar', 10, 0, -10, {r:2, h:10}],
+        ['pillar', -10, 0, 10, {r:2, h:10}],
+        ['pillar', 10, 0, 10, {r:2, h:10}],
+        ['box', 0, 8, 0, {w:24, h:1, d:24}], // Roof
+        ['box', 0, 0, 0, {w:6, h:3, d:6}], // Center cover
+        // Tactical Positions
+        ['box', 30, 0, 30, {w:15, h:4, d:15}],
+        ['box', -30, 0, -30, {w:15, h:6, d:15}],
+        ['box', 0, 0, 25, {w:10, h:2, d:2}],
+        ['box', 0, 0, -25, {w:10, h:2, d:2}]
+    ],
+    'CloseQuarters': [
+        // Borders
+        ['box', 0, 0, -40, {w:80, h:10, d:2}],
+        ['box', 0, 0, 40, {w:80, h:10, d:2}],
+        ['box', -40, 0, 0, {w:2, h:10, d:80}],
+        ['box', 40, 0, 0, {w:2, h:10, d:80}],
+        // Maze-like boxes
+        ['box', -20, 0, -20, {w:10, h:4, d:10}],
+        ['box', 20, 0, -20, {w:10, h:4, d:10}],
+        ['box', -20, 0, 20, {w:10, h:4, d:10}],
+        ['box', 20, 0, 20, {w:10, h:4, d:10}],
+        ['box', 0, 0, 0, {w:5, h:4, d:40}], // Long center wall
+        ['box', 0, 0, 0, {w:40, h:4, d:5}], // Cross wall
+        ['pillar', 15, 0, 15, {r:1.5, h:6}],
+        ['pillar', -15, 0, -15, {r:1.5, h:6}]
+    ],
+    'Towers': [
+        // Borders
+        ['box', 0, 0, -60, {w:120, h:10, d:2}],
+        ['box', 0, 0, 60, {w:120, h:10, d:2}],
+        ['box', -60, 0, 0, {w:2, h:10, d:120}],
+        ['box', 60, 0, 0, {w:2, h:10, d:120}],
+        // Tower 1
+        ['pillar', 0, 0, -40, {r:6, h:20}],
+        ['box', 0, 15, -40, {w:16, h:1, d:16}], // Platform
+        // Tower 2
+        ['pillar', 0, 0, 40, {r:6, h:20}],
+        ['box', 0, 15, 40, {w:16, h:1, d:16}], // Platform
+        // Bridge
+        ['box', 0, 15, 0, {w:4, h:1, d:80}],
+        // Ground Cover
+        ['box', 20, 0, 0, {w:5, h:5, d:20}],
+        ['box', -20, 0, 0, {w:5, h:5, d:20}]
+    ]
+};
 
-// Central Complex
-createStructure('pillar', -10, 0, -10, {r:2, h:10});
-createStructure('pillar', 10, 0, -10, {r:2, h:10});
-createStructure('pillar', -10, 0, 10, {r:2, h:10});
-createStructure('pillar', 10, 0, 10, {r:2, h:10});
-createStructure('box', 0, 8, 0, {w:24, h:1, d:24}); // Roof
+window.loadMap = function(mapName) {
+    // Clear existing walls
+    walls.forEach(mesh => scene.remove(mesh));
+    walls = [];
 
-createStructure('box', 0, 0, 0, {w:6, h:3, d:6}); // Center cover
+    const mapData = MAPS[mapName] || MAPS['Arena'];
+    mapData.forEach(data => {
+        createStructure(data[0], data[1], data[2], data[3], data[4]);
+    });
+    console.log("Loaded map:", mapName);
+};
 
-// Tactical Positions
-createStructure('box', 30, 0, 30, {w:15, h:4, d:15}); 
-createStructure('box', -30, 0, -30, {w:15, h:6, d:15});
-createStructure('box', 0, 0, 25, {w:10, h:2, d:2});
-createStructure('box', 0, 0, -25, {w:10, h:2, d:2});
+// Initial Load
+loadMap('Arena');
 
 // --- Player Model with Face ---
 function createPlayerMesh(color) {
@@ -500,8 +551,19 @@ const controls = new PointerLockControls(camera, document.body);
 const instructions = document.getElementById('instructions');
 
 instructions.addEventListener('click', () => controls.lock());
-controls.addEventListener('lock', () => instructions.style.display = 'none');
-controls.addEventListener('unlock', () => instructions.style.display = 'flex');
+controls.addEventListener('lock', () => {
+    instructions.style.display = 'none';
+    document.getElementById('settings-modal').style.display = 'none';
+    isSettingsOpen = false;
+});
+controls.addEventListener('unlock', () => {
+    if (isChatOpen || isMenuOpen || isDead || isSettingsOpen) {
+        instructions.style.display = 'none';
+    } else {
+        // Opened via ESC
+        toggleSettings();
+    }
+});
 scene.add(controls.getObject());
 
 // Input State
@@ -577,11 +639,13 @@ function toggleScope(active) {
     
     if (isScoped) {
         camera.fov = 30;
+        controls.pointerSpeed = userSettings.mouseSens * userSettings.sniperSens;
         scopeOverlay.style.display = 'flex';
         crosshair.style.display = 'none';
         currentWeaponMesh.visible = false;
     } else {
-        camera.fov = 80;
+        camera.fov = userSettings.fov;
+        controls.pointerSpeed = userSettings.mouseSens;
         scopeOverlay.style.display = 'none';
         crosshair.style.display = 'block';
         currentWeaponMesh.visible = true;
@@ -749,6 +813,7 @@ socket.on('newPlayer', (info) => addOtherPlayer(info));
 socket.on('initPosition', (data) => {
     controls.getObject().position.set(data.x, data.y, data.z);
     velocity.set(0, 0, 0);
+    if(data.map) loadMap(data.map);
 });
 
 socket.on('disconnectPlayer', (id) => { scene.remove(players[id]); delete players[id]; });
@@ -764,8 +829,7 @@ socket.on('playerMoved', (info) => {
     if(players[info.id]) {
         players[info.id].position.set(info.x, info.y, info.z);
         players[info.id].rotation.y = info.rotation;
-        if(info.crouching) players[info.id].scale.y = 0.75;
-        else players[info.id].scale.y = 1.0;
+        players[info.id].userData.targetScaleY = info.crouching ? 0.75 : 1.0;
         
         // Animation (Leg swing if moving)
         if(info.moving) {
@@ -913,6 +977,54 @@ socket.on('playerShoots', (data) => {
     }
 });
 
+// Match Logic
+const matchTimer = document.getElementById('match-timer');
+const votingOverlay = document.getElementById('voting-overlay');
+const voteOptionsDiv = document.getElementById('vote-options');
+const voteStatus = document.getElementById('vote-status');
+
+socket.on('matchUpdate', (data) => {
+    // Format timer
+    const min = Math.floor(data.timeLeft / 60);
+    const sec = data.timeLeft % 60;
+    matchTimer.innerText = `${min < 10 ? '0'+min : min}:${sec < 10 ? '0'+sec : sec}`;
+
+    if (data.gameState === 'VOTING') {
+        matchTimer.style.color = 'yellow';
+    } else {
+        matchTimer.style.color = 'white';
+    }
+});
+
+socket.on('startVoting', (data) => {
+    votingOverlay.style.display = 'flex';
+    controls.unlock();
+    voteStatus.innerText = "Vote for Next Map";
+
+    voteOptionsDiv.innerHTML = '';
+    data.options.forEach(mapName => {
+        const btn = document.createElement('div');
+        btn.className = 'vote-btn';
+        btn.innerText = mapName;
+        btn.onclick = () => {
+             socket.emit('voteMap', mapName);
+             voteStatus.innerText = `Voted for ${mapName}`;
+             // Disable buttons
+             Array.from(voteOptionsDiv.children).forEach(c => c.style.pointerEvents = 'none');
+        };
+        voteOptionsDiv.appendChild(btn);
+    });
+
+    // Show leaderboard?
+    document.getElementById('leaderboard').style.display = 'block';
+});
+
+socket.on('mapChange', (data) => {
+    votingOverlay.style.display = 'none';
+    loadMap(data.map);
+    // Request respawn
+    socket.emit('requestRespawn');
+});
 
 // Start Screen Logic
 const startScreen = document.getElementById('start-screen');
@@ -993,6 +1105,16 @@ function animate() {
     
     if(isReloading) weaponGroup.rotation.x -= 0.5;
 
+    // Remote Player Crouch Animation
+    Object.values(players).forEach(p => {
+        const target = p.userData.targetScaleY || 1.0;
+        p.scale.y = THREE.MathUtils.lerp(p.scale.y, target, delta * 10);
+    });
+
+    // Local Crouch Smoothing
+    const targetHeight = isCrouching ? 1.2 : 1.6;
+    currentCameraHeight = THREE.MathUtils.lerp(currentCameraHeight, targetHeight, delta * 10);
+
     // Movement & Physics
     if (controls.isLocked) {
         const GRAVITY = 50.0;
@@ -1023,7 +1145,7 @@ function animate() {
             const box = wall.userData.boundingBox.clone().expandByScalar(playerRadius);
             // Ignore vertical difference for horizontal collision check logic here
             // But we need to make sure we are at the same height as the wall
-            if (currentPos.y > wall.userData.boundingBox.min.y && currentPos.y - (isCrouching ? 1.2 : 1.6) < wall.userData.boundingBox.max.y) {
+            if (currentPos.y > wall.userData.boundingBox.min.y && currentPos.y - currentCameraHeight < wall.userData.boundingBox.max.y) {
                  if (box.containsPoint(currentPos)) {
                      collided = true;
                  }
@@ -1040,7 +1162,7 @@ function animate() {
         controls.getObject().position.y += (velocity.y * delta); 
 
         // Vertical Collision & Ground Check
-        const feetY = controls.getObject().position.y - (isCrouching ? 1.2 : 1.6);
+        const feetY = controls.getObject().position.y - currentCameraHeight;
         let onGround = false;
         let groundY = 0;
         
@@ -1063,14 +1185,14 @@ function animate() {
         if (onGround) {
             if (feetY <= groundY + 0.1) {
                 velocity.y = 0;
-                controls.getObject().position.y = groundY + (isCrouching ? 1.2 : 1.6);
+                controls.getObject().position.y = groundY + currentCameraHeight;
                 canJump = true;
             }
         }
         
         socket.emit('playerMovement', {
             x: controls.getObject().position.x,
-            y: controls.getObject().position.y - (isCrouching ? 1.2 : 1.6),
+            y: controls.getObject().position.y - currentCameraHeight,
             z: controls.getObject().position.z,
             rotation: controls.getObject().rotation.y,
             crouching: isCrouching,
@@ -1101,4 +1223,81 @@ window.selectWeaponFromMenu = (weapon) => {
     isMenuOpen = false;
     controls.lock();
 };
-// Re-apply event listeners just in case logic needs it, but we are good.
+
+// Settings Logic
+const settingsModal = document.getElementById('settings-modal');
+const sensInput = document.getElementById('sens-input');
+const sniperSensInput = document.getElementById('sniper-sens-input');
+const fovInput = document.getElementById('fov-input');
+const sensVal = document.getElementById('sens-val');
+const sniperSensVal = document.getElementById('sniper-sens-val');
+const fovVal = document.getElementById('fov-val');
+const closeSettingsBtn = document.getElementById('close-settings-btn');
+
+let isSettingsOpen = false;
+let userSettings = {
+    mouseSens: 1.0,
+    sniperSens: 0.5,
+    fov: 80
+};
+
+// Load Settings
+const savedSettings = localStorage.getItem('fpsSettings');
+if (savedSettings) {
+    userSettings = JSON.parse(savedSettings);
+    sensInput.value = userSettings.mouseSens;
+    sniperSensInput.value = userSettings.sniperSens;
+    fovInput.value = userSettings.fov;
+    sensVal.innerText = userSettings.mouseSens;
+    sniperSensVal.innerText = userSettings.sniperSens;
+    fovVal.innerText = userSettings.fov;
+
+    // Apply Init
+    camera.fov = userSettings.fov;
+    camera.updateProjectionMatrix();
+    controls.pointerSpeed = userSettings.mouseSens;
+}
+
+function updateSettings() {
+    userSettings.mouseSens = parseFloat(sensInput.value);
+    userSettings.sniperSens = parseFloat(sniperSensInput.value);
+    userSettings.fov = parseInt(fovInput.value);
+
+    sensVal.innerText = userSettings.mouseSens;
+    sniperSensVal.innerText = userSettings.sniperSens;
+    fovVal.innerText = userSettings.fov;
+
+    localStorage.setItem('fpsSettings', JSON.stringify(userSettings));
+
+    // Apply
+    if (!isScoped) {
+        camera.fov = userSettings.fov;
+        camera.updateProjectionMatrix();
+        controls.pointerSpeed = userSettings.mouseSens;
+    } else {
+        controls.pointerSpeed = userSettings.mouseSens * userSettings.sniperSens;
+    }
+}
+
+sensInput.addEventListener('input', updateSettings);
+sniperSensInput.addEventListener('input', updateSettings);
+fovInput.addEventListener('input', updateSettings);
+
+closeSettingsBtn.addEventListener('click', () => {
+    toggleSettings();
+});
+
+window.toggleSettings = function() {
+    if (isSettingsOpen) {
+        // Closing
+        settingsModal.style.display = 'none';
+        isSettingsOpen = false;
+        controls.lock();
+    } else {
+        // Opening
+        settingsModal.style.display = 'block';
+        isSettingsOpen = true;
+        document.exitPointerLock();
+        instructions.style.display = 'none';
+    }
+}
