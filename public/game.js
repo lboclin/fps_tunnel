@@ -166,6 +166,20 @@ const WEAPONS = {
         color: 0x0000ff,
         traceColor: 0x0000ff
     },
+    'super_laser': {
+        name: 'Super Laser',
+        ammo: 100,
+        fireRate: 50,
+        auto: true,
+        speed: 1.2,
+        recoilForce: 0.01,
+        recoilRecover: 15.0,
+        spreadBase: 0.0,
+        spreadMove: 0.0,
+        recoil: 0.0,
+        color: 0xff0000,
+        traceColor: 0xff0000
+    },
     'knife': {
         name: 'Knife',
         ammo: 0,
@@ -249,6 +263,19 @@ function createDetailedWeapon(type) {
         mag.position.set(0, -0.4, -0.1);
         mag.rotation.x = 0.5;
         group.add(mag);
+
+        group.scale.set(0.5, 0.5, 0.5);
+        group.position.set(0.3, -0.25, -0.6);
+
+    } else if (type === 'super_laser') {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.8), matShiny);
+        group.add(body);
+
+        for (let i = 0; i < 3; i++) {
+            const coil = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.02, 8, 16), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+            coil.position.set(0, 0, -0.3 + (i * 0.2));
+            group.add(coil);
+        }
 
         group.scale.set(0.5, 0.5, 0.5);
         group.position.set(0.3, -0.25, -0.6);
@@ -695,6 +722,9 @@ document.addEventListener('keydown', (e) => {
                 isMenuOpen = false;
                 controls.lock();
             } else {
+                const btn = document.getElementById('btn-super-laser');
+                if (btn) btn.style.display = (myName === 'admin') ? 'block' : 'none';
+
                 document.getElementById('weapon-menu').style.display = 'block';
                 isMenuOpen = true;
                 controls.unlock();
@@ -1033,17 +1063,35 @@ socket.on('killMessage', (data) => {
     msg.className = 'kill-msg';
     const killerName = (data.killerId === socket.id) ? "You" : (data.killerName || data.killerId.substring(0, 5));
     const victimName = (data.victimId === socket.id) ? "You" : (data.victimName || data.victimId.substring(0, 5));
+    const weaponName = (data.weapon && WEAPONS[data.weapon]) ? WEAPONS[data.weapon].name : (data.weapon || 'Unknown');
+
     if (data.killerId === socket.id) {
-        msg.innerText = `You eliminated ${victimName}`;
+        msg.innerText = `You [${weaponName}] ${victimName}`;
         msg.style.color = '#00ff00';
     } else if (data.victimId === socket.id) {
-        msg.innerText = `${killerName} eliminated You`;
+        msg.innerText = `${killerName} [${weaponName}] You`;
         msg.style.color = '#ff0000';
     } else {
-        msg.innerText = `${killerName} eliminated ${victimName}`;
+        msg.innerText = `${killerName} [${weaponName}] ${victimName}`;
     }
     killFeed.appendChild(msg);
     setTimeout(() => msg.remove(), 3000);
+});
+
+socket.on('forceWeapon', (weaponName) => {
+    primaryWeapon = weaponName;
+    currentWeapon = weaponName;
+    currentAmmo = WEAPONS[currentWeapon].ammo;
+    switchWeapon('primary');
+
+    // Notification
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'chat-message';
+    msgDiv.style.color = 'gold';
+    msgDiv.textContent = `SYSTEM: You found a ${WEAPONS[weaponName].name}!`;
+    chatMessages.appendChild(msgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    setTimeout(() => { if (msgDiv.parentNode) msgDiv.remove(); }, 10000);
 });
 
 socket.on('leaderboardUpdate', (list) => {
