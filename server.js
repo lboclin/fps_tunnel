@@ -215,7 +215,7 @@ io.on('connection', (socket) => {
             } else if (weapon === 'sniper') {
                 damage = 100; // Hit kill anywhere
             } else if (weapon === 'laser') {
-                damage = 4; // Low damage high fire rate
+                damage = (part === 'head') ? 15 : 10;
             } else {
                 damage = 20; // Fallback
             }

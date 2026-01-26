@@ -83,6 +83,7 @@ let isCrouching = false;
 let weaponMenuEnabled = true; // Controlled by server
 let isSettingsOpen = false;
 let lastShotTime = 0;
+let akShotCount = 0;
 
 // Recoil Variables
 let currentRecoilPitch = 0; // Up/Down rotation (visual)
@@ -132,7 +133,7 @@ const WEAPONS = {
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
-        spreadMove: 0.02,
+        spreadMove: 0.01,
         recoil: 0.05,     // Accumulates quickly to ~0.3 (30%)
         color: 0x555555,
         traceColor: 0xffaa00
@@ -493,6 +494,22 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
+function createSpiralStaircase(cx, cz, startY, height, radius) {
+    const steps = [];
+    const stepHeight = 0.5;
+    const stepCount = height / stepHeight;
+    const anglePerStep = 0.5;
+
+    for (let i = 0; i < stepCount; i++) {
+        const angle = i * anglePerStep;
+        const x = cx + Math.cos(angle) * radius;
+        const z = cz + Math.sin(angle) * radius;
+        const y = startY + i * stepHeight;
+        steps.push(['box', x, y, z, { w: 2.5, h: stepHeight, d: 2.5 }]);
+    }
+    return steps;
+}
+
 const MAPS = {
     'Arena': [
         // Map Layout (Arena 2.0 Remake)
@@ -545,7 +562,10 @@ const MAPS = {
         ['box', 0, 15, 0, { w: 4, h: 1, d: 80 }],
         // Ground Cover
         ['box', 20, 0, 0, { w: 5, h: 5, d: 20 }],
-        ['box', -20, 0, 0, { w: 5, h: 5, d: 20 }]
+        ['box', -20, 0, 0, { w: 5, h: 5, d: 20 }],
+        // Staircases
+        ...createSpiralStaircase(0, -40, 0, 16, 7.5),
+        ...createSpiralStaircase(0, 40, 0, 16, 7.5)
     ]
 };
 
@@ -743,7 +763,13 @@ function attemptShoot() {
     if (now - lastShotTime < stats.fireRate) return;
 
     // First shot accuracy for AK and SMG
-    if (currentWeapon === 'ak47' || currentWeapon === 'smg') {
+    if (currentWeapon === 'ak47') {
+        if (now - lastShotTime > 500) {
+            currentSpreadRecoil = 0;
+            akShotCount = 0;
+        }
+        akShotCount++;
+    } else if (currentWeapon === 'smg') {
         if (now - lastShotTime > 500) {
             currentSpreadRecoil = 0;
         }
@@ -789,9 +815,42 @@ function performRaycastAttack(dist) {
     // Spread Logic
     let spread = stats.spreadBase + currentSpreadRecoil;
 
-    // First shot accuracy override
-    if ((currentWeapon === 'ak47' || currentWeapon === 'smg') && currentSpreadRecoil === 0) {
-        spread = 0;
+    if (currentWeapon === 'ak47') {
+        // Custom AK Decay Logic
+        const shotIndex = Math.max(0, akShotCount - 1);
+        let errorPct = 0;
+
+        if (isCrouching) {
+             // 100-100-99-99-98
+             if (shotIndex === 0) errorPct = 0;
+             else if (shotIndex === 1) errorPct = 0;
+             else if (shotIndex === 2) errorPct = 1;
+             else if (shotIndex === 3) errorPct = 1;
+             else if (shotIndex === 4) errorPct = 2;
+             else {
+                 // Decay to 10% error (90% accuracy)
+                 const extra = shotIndex - 4;
+                 errorPct = Math.min(10, 2 + extra * 1.5);
+             }
+        } else {
+             // 100-99-98-98-97
+             if (shotIndex === 0) errorPct = 0;
+             else if (shotIndex === 1) errorPct = 1;
+             else if (shotIndex === 2) errorPct = 2;
+             else if (shotIndex === 3) errorPct = 2;
+             else if (shotIndex === 4) errorPct = 3;
+             else {
+                 // Decay to 15% error (85% accuracy)
+                 const extra = shotIndex - 4;
+                 errorPct = Math.min(15, 3 + extra * 2.0);
+             }
+        }
+        spread = errorPct * 0.01;
+    } else {
+        // First shot accuracy override for SMG
+        if (currentWeapon === 'smg' && currentSpreadRecoil === 0) {
+            spread = 0;
+        }
     }
 
     if (moveForward || moveBackward || moveLeft || moveRight) spread += stats.spreadMove;
@@ -1348,32 +1407,51 @@ function animate() {
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
 
-        const oldPos = controls.getObject().position.clone();
+        const startPos = controls.getObject().position.clone();
 
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        // Check Wall Collision
-        let collided = false;
-        const playerRadius = 0.5;
-        const currentPos = controls.getObject().position;
+        const endPos = controls.getObject().position.clone();
 
-        walls.forEach(wall => {
-            const box = wall.userData.boundingBox.clone().expandByScalar(playerRadius);
-            // Ignore vertical difference for horizontal collision check logic here
-            // But we need to make sure we are at the same height as the wall
-            if (currentPos.y > wall.userData.boundingBox.min.y && currentPos.y - currentCameraHeight < wall.userData.boundingBox.max.y) {
-                if (box.containsPoint(currentPos)) {
-                    collided = true;
+        // Check Wall Collision
+        const checkCollision = (position) => {
+            const playerRadius = 0.5;
+            for (const wall of walls) {
+                const box = wall.userData.boundingBox.clone().expandByScalar(playerRadius);
+                if (position.y > wall.userData.boundingBox.min.y && position.y - currentCameraHeight < wall.userData.boundingBox.max.y) {
+                    if (box.containsPoint(position)) {
+                        return true;
+                    }
                 }
             }
-        });
+            return false;
+        };
 
-        if (collided) {
-            controls.getObject().position.x = oldPos.x;
-            controls.getObject().position.z = oldPos.z;
-            velocity.x = 0;
-            velocity.z = 0;
+        if (checkCollision(endPos)) {
+            // Collision detected - Try sliding
+            // Try X only
+            const posX = startPos.clone();
+            posX.x = endPos.x;
+            const xCollided = checkCollision(posX);
+
+            // Try Z only
+            const posZ = startPos.clone();
+            posZ.z = endPos.z;
+            const zCollided = checkCollision(posZ);
+
+            // Apply allowed movements
+            if (!xCollided) {
+                controls.getObject().position.x = endPos.x;
+            } else {
+                controls.getObject().position.x = startPos.x;
+            }
+
+            if (!zCollided) {
+                controls.getObject().position.z = endPos.z;
+            } else {
+                controls.getObject().position.z = startPos.z;
+            }
         }
 
         controls.getObject().position.y += (velocity.y * delta);
@@ -1382,6 +1460,8 @@ function animate() {
         const feetY = controls.getObject().position.y - currentCameraHeight;
         let onGround = false;
         let groundY = 0;
+
+        const currentPos = controls.getObject().position;
 
         walls.forEach(wall => {
             const box = wall.userData.boundingBox;
