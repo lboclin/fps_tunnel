@@ -216,6 +216,8 @@ io.on('connection', (socket) => {
                 damage = 100; // Hit kill anywhere
             } else if (weapon === 'laser') {
                 damage = (part === 'head') ? 15 : 10;
+            } else if (weapon === 'super_laser') {
+                damage = 100; // Hit kill
             } else {
                 damage = 20; // Fallback
             }
@@ -237,6 +239,14 @@ io.on('connection', (socket) => {
                     // Heal 35 on kill, max 100
                     players[socket.id].health = Math.min(100, players[socket.id].health + 35);
                     io.emit('healthUpdate', { id: socket.id, health: players[socket.id].health });
+
+                    // Chance to get Super Laser (1%)
+                    if (weapon !== 'super_laser') {
+                         const roll = Math.floor(Math.random() * 100);
+                         if (roll === 0) { // 1 in 100
+                             io.to(socket.id).emit('forceWeapon', 'super_laser');
+                         }
+                    }
                 }
 
                 // Emit Kill Feed with Names
@@ -244,7 +254,8 @@ io.on('connection', (socket) => {
                     killerId: socket.id,
                     victimId: targetId,
                     killerName: players[socket.id] ? players[socket.id].name : "Unknown",
-                    victimName: players[targetId] ? players[targetId].name : "Unknown"
+                    victimName: players[targetId] ? players[targetId].name : "Unknown",
+                    weapon: weapon
                 });
 
                 // Broadcast new leaderboard
