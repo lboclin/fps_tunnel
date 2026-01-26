@@ -115,7 +115,7 @@ const WEAPONS = {
         ammo: 25,
         fireRate: 125,
         auto: true,
-        speed: 0.68,
+        speed: 0.47,
         recoilForce: 0.05,
         recoilRecover: 0.3, // Slow recovery during fire (allows buildup). Resets instantly after 500ms stop.
         spreadBase: 0.0,   // Base is perfect
@@ -129,7 +129,7 @@ const WEAPONS = {
         ammo: 35,
         fireRate: 66,
         auto: true,
-        speed: 0.90,
+        speed: 1.0,
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
@@ -1061,19 +1061,28 @@ socket.on('updateGameRules', (rules) => {
 socket.on('killMessage', (data) => {
     const msg = document.createElement('div');
     msg.className = 'kill-msg';
+
+    // Background Styling
+    if (data.killerId === socket.id) {
+        msg.classList.add('kill-success');
+    } else {
+        msg.classList.add('kill-fail');
+    }
+
     const killerName = (data.killerId === socket.id) ? "You" : (data.killerName || data.killerId.substring(0, 5));
     const victimName = (data.victimId === socket.id) ? "You" : (data.victimName || data.victimId.substring(0, 5));
     const weaponName = (data.weapon && WEAPONS[data.weapon]) ? WEAPONS[data.weapon].name : (data.weapon || 'Unknown');
 
-    if (data.killerId === socket.id) {
-        msg.innerText = `You [${weaponName}] ${victimName}`;
-        msg.style.color = '#00ff00';
-    } else if (data.victimId === socket.id) {
-        msg.innerText = `${killerName} [${weaponName}] You`;
-        msg.style.color = '#ff0000';
-    } else {
-        msg.innerText = `${killerName} [${weaponName}] ${victimName}`;
+    msg.innerText = `${killerName} [${weaponName}] ${victimName}`;
+
+    // Headshot Icon
+    if (data.isHeadshot) {
+        const icon = document.createElement('img');
+            icon.src = 'assets/skull.jpg';
+        icon.className = 'kill-icon';
+        msg.appendChild(icon);
     }
+
     killFeed.appendChild(msg);
     setTimeout(() => msg.remove(), 3000);
 });

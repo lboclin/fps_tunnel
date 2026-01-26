@@ -215,7 +215,9 @@ io.on('connection', (socket) => {
             } else if (weapon === 'sniper') {
                 damage = 100; // Hit kill anywhere
             } else if (weapon === 'laser') {
-                damage = (part === 'head') ? 15 : 5;
+                damage = (part === 'head') ? 15 : 10;
+            } else if (weapon === 'super_laser') {
+                damage = 100; // Hit kill
             } else {
                 damage = 20; // Fallback
             }
@@ -253,7 +255,8 @@ io.on('connection', (socket) => {
                     victimId: targetId,
                     killerName: players[socket.id] ? players[socket.id].name : "Unknown",
                     victimName: players[targetId] ? players[targetId].name : "Unknown",
-                    weapon: weapon
+                    weapon: weapon,
+                    isHeadshot: (part === 'head')
                 });
 
                 // Broadcast new leaderboard
