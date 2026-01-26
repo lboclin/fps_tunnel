@@ -115,7 +115,7 @@ const WEAPONS = {
         ammo: 25,
         fireRate: 125,
         auto: true,
-        speed: 0.47,
+        speed: 0.68,
         recoilForce: 0.05,
         recoilRecover: 0.3, // Slow recovery during fire (allows buildup). Resets instantly after 500ms stop.
         spreadBase: 0.0,   // Base is perfect
@@ -129,7 +129,7 @@ const WEAPONS = {
         ammo: 35,
         fireRate: 66,
         auto: true,
-        speed: 1.0,
+        speed: 0.90,
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
