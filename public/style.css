@@ -133,13 +133,41 @@ body {
 }
 
 .kill-msg {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 5px 10px;
+    border-radius: 4px;
+    margin-bottom: 5px;
     color: white;
-    font-size: 18px;
+    font-size: 16px;
     font-weight: bold;
     text-shadow: 1px 1px 1px black;
-    margin-bottom: 5px;
-    opacity: 1;
-    animation: fadeOut 3s forwards;
+    animation: fadeOut 5s forwards;
+    border: 2px solid transparent;
+}
+
+.kill-border-green {
+    border-color: #00ff00;
+}
+
+.kill-border-red {
+    border-color: #ff0000;
+}
+
+.text-green {
+    color: #00ff00;
+}
+
+.text-red {
+    color: #ff0000;
+}
+
+.weapon-name {
+    color: #ffffff;
+    font-weight: normal;
+    font-size: 14px;
 }
 
 @keyframes fadeOut {
@@ -451,22 +479,9 @@ body {
     width: 100%;
 }
 
-.kill-success {
-    background-color: rgba(0, 255, 0, 0.9);
-    padding: 5px;
-    border-radius: 4px;
-}
-
-.kill-fail {
-    background-color: rgba(255, 0, 0, 0.9);
-    padding: 5px;
-    border-radius: 4px;
-}
-
 .kill-icon {
-    width: 24px;
-    height: 24px;
-    vertical-align: middle;
-    margin-left: 8px;
-    display: inline-block;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    margin: 0;
 }

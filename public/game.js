@@ -1062,26 +1062,39 @@ socket.on('killMessage', (data) => {
     const msg = document.createElement('div');
     msg.className = 'kill-msg';
 
-    // Background Styling
+    // Border Styling
     if (data.killerId === socket.id) {
-        msg.classList.add('kill-success');
+        msg.classList.add('kill-border-green');
     } else {
-        msg.classList.add('kill-fail');
+        msg.classList.add('kill-border-red');
     }
 
-    const killerName = (data.killerId === socket.id) ? "You" : (data.killerName || data.killerId.substring(0, 5));
-    const victimName = (data.victimId === socket.id) ? "You" : (data.victimName || data.victimId.substring(0, 5));
-    const weaponName = (data.weapon && WEAPONS[data.weapon]) ? WEAPONS[data.weapon].name : (data.weapon || 'Unknown');
+    const createNameSpan = (id, name, isMe) => {
+        const span = document.createElement('span');
+        span.innerText = isMe ? "You" : (name || id.substring(0, 5));
+        span.className = isMe ? 'text-green' : 'text-red';
+        return span;
+    };
 
-    msg.innerText = `${killerName} [${weaponName}] ${victimName}`;
+    const killerSpan = createNameSpan(data.killerId, data.killerName, data.killerId === socket.id);
+    const victimSpan = createNameSpan(data.victimId, data.victimName, data.victimId === socket.id);
+
+    const weaponSpan = document.createElement('span');
+    weaponSpan.className = 'weapon-name';
+    weaponSpan.innerText = (data.weapon && WEAPONS[data.weapon]) ? WEAPONS[data.weapon].name : (data.weapon || 'Unknown');
+
+    msg.appendChild(killerSpan);
+    msg.appendChild(weaponSpan);
 
     // Headshot Icon
     if (data.isHeadshot) {
         const icon = document.createElement('img');
-            icon.src = 'assets/skull.jpg';
+        icon.src = 'assets/skull.png';
         icon.className = 'kill-icon';
         msg.appendChild(icon);
     }
+
+    msg.appendChild(victimSpan);
 
     killFeed.appendChild(msg);
     setTimeout(() => msg.remove(), 3000);
