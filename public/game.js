@@ -1071,7 +1071,7 @@ socket.on('killMessage', (data) => {
 
     const createNameSpan = (id, name, isMe) => {
         const span = document.createElement('span');
-        span.innerText = isMe ? "You" : (name || id.substring(0, 5));
+        span.innerText = name || id.substring(0, 5);
         span.className = isMe ? 'text-green' : 'text-red';
         return span;
     };
@@ -1088,9 +1088,9 @@ socket.on('killMessage', (data) => {
 
     // Headshot Icon
     if (data.isHeadshot) {
-        const icon = document.createElement('img');
-        icon.src = 'assets/skull.png';
-        icon.className = 'kill-icon';
+        const icon = document.createElement('span');
+        icon.innerText = '💀';
+        icon.className = 'kill-icon-text';
         msg.appendChild(icon);
     }
 
@@ -1121,9 +1121,12 @@ socket.on('leaderboardUpdate', (list) => {
     leaderboardList.innerHTML = '';
     list.forEach(p => {
         const li = document.createElement('li');
-        const nameText = (p.id === socket.id) ? "You" : (p.name || p.id.substring(0, 5));
+        const nameText = p.name || p.id.substring(0, 5);
         li.innerText = `${nameText}: ${p.kills}`;
-        if (p.id === socket.id) li.style.fontWeight = 'bold';
+        if (p.id === socket.id) {
+            li.style.fontWeight = 'bold';
+            li.style.color = '#ffd700'; // Gold color for current player
+        }
         leaderboardList.appendChild(li);
     });
 });

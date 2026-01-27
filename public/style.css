@@ -479,9 +479,8 @@ body {
     width: 100%;
 }
 
-.kill-icon {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
+.kill-icon-text {
+    font-size: 20px;
     margin: 0;
+    line-height: 1;
 }
