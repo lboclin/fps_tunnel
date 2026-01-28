@@ -101,7 +101,7 @@ const WEAPONS = {
         ammo: 7,
         fireRate: 400,
         auto: false,
-        speed: 0.95,
+        speed: 0.90,
         recoilForce: 0.15, // Visual Kick
         recoilRecover: 5.0, // Recovery Speed
         spreadBase: 0.0,
@@ -115,7 +115,7 @@ const WEAPONS = {
         ammo: 25,
         fireRate: 125,
         auto: true,
-        speed: 0.73,
+        speed: 0.47,
         recoilForce: 0.05,
         recoilRecover: 0.3, // Slow recovery during fire (allows buildup). Resets instantly after 500ms stop.
         spreadBase: 0.0,   // Base is perfect
@@ -129,7 +129,7 @@ const WEAPONS = {
         ammo: 35,
         fireRate: 66,
         auto: true,
-        speed: 0.95,
+        speed: 1.0,
         recoilForce: 0.03,
         recoilRecover: 0.5, // Slow recovery during fire.
         spreadBase: 0.0,
@@ -143,7 +143,7 @@ const WEAPONS = {
         ammo: 5,
         fireRate: 1200,
         auto: false,
-        speed: 0.73, // Reduced by ~15%
+        speed: 0.68, // Reduced by ~15%
         recoilForce: 0.4,
         recoilRecover: 2.0,
         spreadBase: 0.001,
@@ -741,6 +741,20 @@ document.addEventListener('keydown', (e) => {
                 }
             }
             break;
+        case 'Digit6':
+        case 'Numpad6':
+            if (votingOverlay.style.display === 'flex' && currentVoteOptions.length > 0) {
+                socket.emit('voteMap', currentVoteOptions[0]);
+                voteStatus.innerText = `Voted for ${currentVoteOptions[0]}`;
+            }
+            break;
+        case 'Digit7':
+        case 'Numpad7':
+            if (votingOverlay.style.display === 'flex' && currentVoteOptions.length > 1) {
+                socket.emit('voteMap', currentVoteOptions[1]);
+                voteStatus.innerText = `Voted for ${currentVoteOptions[1]}`;
+            }
+            break;
     }
 });
 document.addEventListener('keyup', (e) => {
@@ -1240,12 +1254,22 @@ socket.on('startVoting', (data) => {
         voteOptionsDiv.appendChild(btn);
     });
 
-    // Show leaderboard?
-    document.getElementById('leaderboard').style.display = 'block';
+    // Make Leaderboard Big and Center
+    const leaderboard = document.getElementById('leaderboard');
+    leaderboard.style.display = 'block';
+    leaderboard.classList.add('leaderboard-voting');
 });
 
 socket.on('mapChange', (data) => {
     votingOverlay.style.display = 'none';
+
+    // Reset Leaderboard Style
+    const leaderboard = document.getElementById('leaderboard');
+    leaderboard.classList.remove('leaderboard-voting');
+    // Keep it displayed or hide? Usually hide/small during game, but code keeps it "top right" style by default if visible.
+    // The previous code had `leaderboard.style.display = 'block'` in startVoting, implying it might be hidden or small otherwise.
+    // Based on `style.css` it is absolute top right. Removing class restores that.
+
     loadMap(data.map);
     // Request respawn
     socket.emit('requestRespawn');

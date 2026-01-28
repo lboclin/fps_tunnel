@@ -274,6 +274,18 @@ body {
     padding: 2px 0;
 }
 
+.leaderboard-voting {
+    top: 55% !important; /* Below centered buttons */
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, 0) !important;
+    width: 500px !important;
+    font-size: 1.5em;
+    background: rgba(0, 0, 0, 0.8) !important;
+    z-index: 65; /* Above voting overlay background but below interactive elements if any overlap */
+    border: 2px solid white;
+}
+
 #death-screen {
     position: absolute;
     top: 0;
